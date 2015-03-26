@@ -119,7 +119,7 @@ for stage,parts in sorted(stages.items(), key=lambda (k,v): -k):
             #TODO: support more engine types
             # SRB is its own fuel tank
             if 'SolidFuel' in engine_info['propellants']:
-                part = engine_info[engine]['part']
+                part = engine_info['part']
                 tanks = []
                 if tanks_info[part]['SolidFuel']['mass'] > 0.1:
                     tanks = [part]
