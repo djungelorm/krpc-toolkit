@@ -34,15 +34,23 @@ density = {
   'MonoPropellant': 4
 }
 
+# Get parts decoupled in each stage
+decouple_stages = defaultdict(list)
+for part,info in parts_info.items():
+    decouple_stages[info['decouple_stage']].append(part)
+
 # Get parts activated in each stage
 stages = defaultdict(list)
 for part,info in parts_info.items():
     stages[info['stage']].append(part)
 
-# Get parts decoupled in each stage
-decouple_stages = defaultdict(list)
-for part,info in parts_info.items():
-    decouple_stages[info['decouple_stage']].append(part)
+# Merge adjacent stages that do not decouple any parts (ignoring launch clamps)
+for stage in range(max(stages.keys()), 0, -1):
+    if stage in stages:
+        if len(filter(lambda p: p.launch_clamp is None, decouple_stages[stage])) == 0 and \
+           len(filter(lambda p: p.launch_clamp is None, decouple_stages[stage-1])) == 0:
+            stages[stage-1].extend(stages[stage])
+            del stages[stage]
 
 # Information about engines
 engines_info = {}
