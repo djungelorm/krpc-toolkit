@@ -89,6 +89,19 @@ for stage,parts in sorted(stages.items(), key=lambda (k,v): -k):
         if engine is not None and engine in engines_info:
             del engines_info[engine]
 
+    #print stage
+    #print 'activate'
+    #for p in parts:
+    #    print '  ', p, p.title
+    #print 'decouple'
+    #for p in decouple_stages[stage]:
+    #    print '  ', p, p.title
+
+    for part in decouple_stages[stage]:
+        if part in parts:
+            parts.remove(part)
+            #print 'remove ', part, part.title
+
     # Compute total mass of stage (all parts plus starting fuel)
     stage_total_mass = 0
     for _,stage_parts in filter(lambda (k,v): k < stage, decouple_stages.items()):
