@@ -1,30 +1,39 @@
 #https://ghowen.me/build-your-own-quadcopter-autopilot/
 import numpy as np
 from krpctoolkit.pid import PIDController
+import math
 
 class RollController(object):
-    def __init__(self, conn, vessel, target, ref):
+    def __init__(self, conn, vessel, target, ref, mult=1):
         self.control = vessel.control
-        self.target = target
+        self.target = target * (math.pi/180.)
         self.roll = conn.add_stream(getattr, vessel.flight(ref), 'roll')
+        self.mult = mult
 
     def __call__(self):
-        r = self.roll()
-        err = self.target - r
-        roll = err * 0.001
+        roll = self.error * self.mult
         self.control.roll = roll
 
+    @property
+    def error(self):
+        return self.target - self.roll()
+
 class PitchController(object):
-    def __init__(self, conn, vessel, target, ref):
+    def __init__(self, conn, vessel, target, ref, mult=1):
         self.control = vessel.control
-        self.target = target
-        self.velocity = conn.add_stream(getattr, vessel.flight(ref), 'prograde')
+        self.target = target * (math.pi/180.)
+        #self.velocity = conn.add_stream(getattr, vessel.flight(ref), 'prograde')
+        self.velocity = lambda: vessel.flight(ref).prograde
+        self.mult = mult
 
     def __call__(self):
+        pitch = self.error * self.mult
+        self.control.pitch = float(pitch) #TODO: why is this double?!?!
+
+    @property
+    def error(self):
         angle = np.dot(self.velocity(), (1,0,0))
-        err = self.target - angle
-        pitch = err * 2
-        self.control.pitch = float(pitch)
+        return (self.target/2) - angle
 
 class RotationRateController(object):
     def __init__(self, conn, vessel, target, ref):

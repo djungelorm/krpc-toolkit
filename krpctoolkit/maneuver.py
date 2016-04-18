@@ -5,16 +5,23 @@ from krpctoolkit.throttle import *
 from krpctoolkit.attitude import *
 from krpctoolkit.staging import *
 
-def circularize(conn, vessel):
+def circularize(conn, vessel, at_apoapsis=True):
     orbit = vessel.orbit
     mu = orbit.body.gravitational_parameter
-    r = orbit.apoapsis
+    if at_apoapsis:
+        r = orbit.apoapsis
+    else:
+        r = orbit.periapsis
     a1 = orbit.semi_major_axis
     a2 = r
     v1 = math.sqrt(mu*((2./r)-(1./a1)))
     v2 = math.sqrt(mu*((2./r)-(1./a2)))
     delta_v = v2 - v1
-    ut = conn.space_center.ut + orbit.time_to_apoapsis
+    ut = conn.space_center.ut
+    if at_apoapsis:
+        ut += orbit.time_to_apoapsis
+    else:
+        ut += orbit.time_to_periapsis
     node = vessel.control.add_node(ut, prograde=delta_v)
     return node
 
@@ -158,10 +165,12 @@ def execute_node(conn, vessel, node):
 
 class ExecuteNode(object):
 
-    def __init__(self, conn, vessel, node):
+    def __init__(self, conn, vessel, node, lead_time=5):
+        self.conn = conn
         self.vessel = vessel
         self.node = node
         self.ut = conn.add_stream(getattr, conn.space_center, 'ut')
+        self.lead_time = lead_time
         self.remaining_burn = conn.add_stream(node.remaining_burn_vector, node.reference_frame)
         self.node_ut = node.ut
 
@@ -185,19 +194,24 @@ class ExecuteNode(object):
 
         burn_ut = self.node_ut - (self.burn_time/2.)
 
-        #lead_time = 5
-        #self.conn.space_center.warp_to(burn_ut - lead_time)
+        #TODO: check vessel is pointing in the correct direction before warping
+        #      and if the error is large, drop out of warp and reorient the vessel
+        if self.ut() < burn_ut - self.lead_time:
+            self.conn.space_center.warp_to(burn_ut - self.lead_time)
 
         if self.ut() < burn_ut:
             return False
 
         # Burn time remaining
-        F = self.vessel.available_thrust
-        Isp = self.vessel.specific_impulse * 9.82
-        m0 = self.vessel.mass
-        m1 = m0 / math.exp(self.remaining_burn()[1]/Isp)
-        flow_rate = F / Isp
-        remaining_burn_time = (m0 - m1) / flow_rate
+        try:
+            F = self.vessel.available_thrust
+            Isp = self.vessel.specific_impulse * 9.82
+            m0 = self.vessel.mass
+            m1 = m0 / math.exp(self.remaining_burn()[1]/Isp)
+            flow_rate = F / Isp
+            remaining_burn_time = (m0 - m1) / flow_rate
+        except ZeroDivisionError:
+            return False
 
         if remaining_burn_time > 2:
             # Burn at full throttle
